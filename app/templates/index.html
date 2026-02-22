@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Tracker</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .list { border: 1px solid #ccc; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .task { padding: 5px 0; }
+        .task.done { text-decoration: line-through; color: #888; }
+        .actions { margin-top: 10px; }
+        input[type="text"] { padding: 5px; }
+        button { padding: 5px 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Task Tracker</h1>
+    
+    <h2>Create New List</h2>
+    <form action="/list/create" method="post">
+        <input type="text" name="name" placeholder="List name" required>
+        <button type="submit">Create List</button>
+    </form>
+    
+    {% for item in data %}
+    <div class="list">
+        <h3>{{ item.list.name }}</h3>
+        
+        <form action="/task/add" method="post" style="margin: 10px 0;">
+            <input type="hidden" name="list_id" value="{{ item.list.id }}">
+            <input type="text" name="title" placeholder="New task" required>
+            <button type="submit">Add Task</button>
+        </form>
+        
+        {% for task in item.tasks %}
+        <div class="task {% if task.done %}done{% endif %}">
+            <form action="/task/toggle" method="post" style="display:inline;">
+                <input type="hidden" name="task_id" value="{{ task.id }}">
+                <button type="submit">{% if task.done %}Undo{% else %}Done{% endif %}</button>
+            </form>
+            {{ task.title }}
+        </div>
+        {% endfor %}
+        
+        <div class="actions">
+            <form action="/list/delete" method="post">
+                <input type="hidden" name="list_id" value="{{ item.list.id }}">
+                <button type="submit" onclick="return confirm('Delete this list and all tasks?')">Delete List</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</body>
+</html>
