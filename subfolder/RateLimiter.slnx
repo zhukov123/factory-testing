@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="RateLimiter.Benchmarks/RateLimiter.Benchmarks.csproj" />
+  <Project Path="RateLimiter.Examples/RateLimiter.Examples.csproj" />
+  <Project Path="RateLimiter.Tests/RateLimiter.Tests.csproj" />
+  <Project Path="RateLimiter/RateLimiter.csproj" />
+</Solution>

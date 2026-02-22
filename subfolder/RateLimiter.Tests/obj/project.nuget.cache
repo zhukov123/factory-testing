@@ -1,0 +1,41 @@
+{
+  "version": 2,
+  "dgSpecHash": "0LxP7JY+oVg=",
+  "success": false,
+  "projectFilePath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+  "expectedPackageFiles": [],
+  "logs": [
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://api.nuget.org/v3/index.json.\n  The HTTP request to 'GET https://api.nuget.org/v3/index.json' has timed out after 100000ms.",
+      "projectPath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "filePath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://api.nuget.org/v3/index.json.\n  The HTTP request to 'GET https://api.nuget.org/v3/index.json' has timed out after 100000ms.",
+      "projectPath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "filePath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://api.nuget.org/v3/index.json.\n  The HTTP request to 'GET https://api.nuget.org/v3/index.json' has timed out after 100000ms.",
+      "projectPath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "filePath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "targetGraphs": []
+    },
+    {
+      "code": "NU1301",
+      "level": "Error",
+      "message": "Unable to load the service index for source https://api.nuget.org/v3/index.json.\n  The HTTP request to 'GET https://api.nuget.org/v3/index.json' has timed out after 100000ms.",
+      "projectPath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "filePath": "/home/vishwa/.openclaw/workspace/factory-testing/subfolder/RateLimiter.Tests/RateLimiter.Tests.csproj",
+      "targetGraphs": []
+    }
+  ]
+}
