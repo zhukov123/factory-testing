@@ -459,14 +459,12 @@ class RateLimiter:
         prefix = self._config.redis.key_prefix.rstrip(":")
         tag = self._ALGORITHM_TAGS.get(rule.rate.algorithm, rule.rate.algorithm)
         parts = [prefix, tag, self._sanitize(rule.name)]
-        if rule.match.user_id and request.user_id:
-            parts.append(f"user:{self._sanitize(request.user_id)}")
-        elif request.user_id:
-            parts.append(f"user:{self._sanitize(request.user_id)}")
-        if rule.match.api_key and request.api_key:
-            parts.append(f"api:{self._sanitize(request.api_key)}")
-        elif request.api_key:
-            parts.append(f"api:{self._sanitize(request.api_key)}")
+        if rule.match.user_id:
+            identifier = request.user_id or "anonymous"
+            parts.append(f"user:{self._sanitize(identifier)}")
+        if rule.match.api_key:
+            identifier = request.api_key or "anonymous"
+            parts.append(f"api:{self._sanitize(identifier)}")
         if rule.match.endpoint and request.endpoint:
             parts.append(f"endpoint:{self._sanitize(request.endpoint)}")
         if rule.match.labels:

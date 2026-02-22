@@ -1,255 +1,215 @@
 """
-Example FastAPI Server with Distributed Rate Limiter
-
-This example demonstrates how to use the distributed rate limiter
-with FastAPI, including Redis backend and fallback support.
-
-Run with:
-    uvicorn example.server:app --reload --host 0.0.0.0 --port 8000
+Example FastAPI server using the distributed rate limiter.
 """
 
 import asyncio
+from typing import Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+from pydantic import BaseModel
 
 from distributedratelimiter import (
-    create_rate_limiter,
-    RateLimitMiddleware,
-    setup_middleware,
-    RateLimiter,
-    RedisConfig,
-    RedisBackend,
+    Config,
+    load_config,
+    create_rate_limit_middleware,
+    RateLimitMiddleware
 )
-from distributedratelimiter.config import ConfigLoader, MiddlewareConfig
 
 
-# Create FastAPI application
+# Sample configuration (in practice, this would be in a YAML file)
+CONFIG = Config(
+    rules=[
+        {
+            "path": "/api/public",
+            "methods": ["GET"],
+            "limit": 100,
+            "window": 60.0,
+            "algorithm": "token_bucket"
+        },
+        {
+            "path": "/api/private",
+            "methods": ["GET", "POST"],
+            "limit": 20,
+            "window": 60.0,
+            "algorithm": "sliding_window_log"
+        },
+        {
+            "path": "/api/admin",
+            "methods": ["GET", "POST", "DELETE"],
+            "limit": 5,
+            "window": 60.0,
+            "algorithm": "fixed_window"
+        }
+    ],
+    middleware={
+        "enabled": True,
+        "header_prefix": "X-RateLimit",
+        "include_stats_in_response": True,
+        "skip_paths": ["/health", "/docs", "/openapi.json"]
+    },
+    fallback={
+        "enabled": True,
+        "algorithm": "token_bucket",
+        "max_requests": 100,
+        "window": 60.0
+    }
+)
+
+
+# Create FastAPI app
 app = FastAPI(
     title="Distributed Rate Limiter Example",
-    description="Example server demonstrating distributed rate limiting",
+    description="Example API with distributed rate limiting",
     version="1.0.0"
 )
 
 
-# Configure rate limiter
-async def configure_rate_limiter():
-    """Configure rate limiter with Redis support."""
-    # Try to connect to Redis
-    redis_config = RedisConfig(
-        host="localhost",
-        port=6379,
-        db=0,
-    )
-    redis_backend = RedisBackend(redis_config)
-    
-    try:
-        if await redis_backend.is_available():
-            print("✓ Connected to Redis")
-            rate_limiter = RateLimiter(
-                algorithm="token_bucket",
-                max_requests=100,
-                window_seconds=60.0,
-                backend=redis_backend
-            )
-            return rate_limiter, redis_backend
-        else:
-            print("⚠ Redis unavailable, using in-memory fallback")
-    except Exception as e:
-        print(f"⚠ Redis connection failed: {e}, using in-memory fallback")
-    
-    # Fallback to in-memory
-    rate_limiter = RateLimiter(
-        algorithm="token_bucket",
-        max_requests=100,
-        window_seconds=60.0,
-        backend=None
-    )
-    return rate_limiter, redis_backend
+# Add rate limiting middleware
+RateLimitMiddlewareFactory = create_rate_limit_middleware(config=CONFIG)
+app.add_middleware(RateLimitMiddlewareFactory)
 
 
-# Global rate limiter instances
-rate_limiter: RateLimiter = None
-redis_backend: RedisBackend = None
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize rate limiter on startup."""
-    global rate_limiter, redis_backend
-    
-    rate_limiter, redis_backend = await configure_rate_limiter()
-    
-    # Set up rate limiting middleware
-    middleware = RateLimitMiddleware(
-        app,
-        rate_limiter=rate_limiter,
-        skip_paths=["/health", "/metrics"],
-        excluded_paths=["/docs", "/openapi.json"]
-    )
-    app.user_middleware = [middleware] + [
-        m for m in app.user_middleware
-        if not isinstance(m, RateLimitMiddleware)
-    ]
-    
-    print("✓ Rate limiter initialized")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Cleanup on shutdown."""
-    global redis_backend
-    
-    if redis_backend:
-        await redis_backend.close()
-        print("✓ Redis connection closed")
-
-
-# Health check endpoint (excluded from rate limiting)
+# Health check endpoint (skipped from rate limiting)
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "rate_limiter": {
-            "algorithm": rate_limiter.algorithm if rate_limiter else "none",
-            "max_requests": rate_limiter.max_requests if rate_limiter else 0,
-        }
-    }
+    return {"status": "healthy", "timestamp": asyncio.get_event_loop().time()}
 
 
-# Metrics endpoint (excluded from rate limiting)
-@app.get("/metrics")
-async def metrics():
-    """Rate limiter metrics."""
-    return {
-        "redis_available": False,  # Would need to track this
-        "fallback_active": rate_limiter.backend is None if rate_limiter else True,
-    }
+# Root endpoint
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {"message": "Welcome to the Distributed Rate Limiter Example API"}
 
 
-# Rate-limited endpoints
-@app.get("/api/limited")
-async def rate_limited_endpoint(request: Request):
-    """
-    This endpoint is rate limited by the middleware.
-    
-    Returns the current rate limit status in the response headers.
-    """
-    return {
-        "message": "This endpoint is rate limited",
-        "client_ip": request.client.host if request.client else "unknown",
-    }
+# Public endpoint (100 requests/minute)
+class PublicResponse(BaseModel):
+    message: str
+    endpoint: str
+    timestamp: float
 
 
-@app.get("/api/limited/{resource_id}")
-async def rate_limited_resource(
-    request: Request,
-    resource_id: str,
-    user_id: str = None
-):
-    """
-    Rate-limited endpoint with path parameter.
-    
-    Rate limits are applied per resource.
-    """
-    return {
-        "message": f"Resource {resource_id} accessed",
-        "resource_id": resource_id,
-        "user_id": user_id,
-        "client_ip": request.client.host if request.client else "unknown",
-    }
-
-
-@app.post("/api/limited")
-async def rate_limited_post(
-    request: Request,
-    data: dict
-):
-    """
-    Rate-limited POST endpoint.
-    
-    Demonstrates rate limiting for POST requests.
-    """
-    return {
-        "message": "POST request processed",
-        "data_received": len(str(data)) < 1000,  # Truncate for logging
-        "client_ip": request.client.host if request.client else "unknown",
-    }
-
-
-# Custom rate-limited endpoint with decorator
-from distributedratelimiter.middleware import rate_limit
-
-@app.get("/api/decorated")
-@rate_limit(max_requests=5, window_seconds=10.0, key_source="client_ip")
-async def decorated_endpoint(request: Request):
-    """
-    This endpoint uses the @rate_limit decorator.
-    
-    Different rate limit settings from the middleware.
-    """
-    return {
-        "message": "Decorated rate-limited endpoint",
-        "rate_limit": "5 requests per 10 seconds",
-    }
-
-
-# Manual rate limiting example
-@app.get("/api/manual-rate-limit")
-async def manual_rate_limit(request: Request):
-    """
-    This endpoint demonstrates manual rate limiting.
-    
-    Shows how to check rate limits programmatically.
-    """
-    global rate_limiter
-    
-    if rate_limiter:
-        # Manual rate limit check
-        key = f"ip:{request.client.host}" if request.client else "unknown"
-        result = await rate_limiter.acquire(key, endpoint="/api/manual-rate-limit")
-        
-        if not result.allowed:
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "Rate limit exceeded",
-                    "retry_after": result.retry_after,
-                },
-                headers={
-                    "Retry-After": str(int(result.retry_after)),
-                }
-            )
-        
-        return {
-            "message": "Manual rate limiting example",
-            "allowed": True,
-            "remaining": result.remaining,
-            "reset_at": result.reset_at,
-        }
-    
-    return {"message": "Rate limiter not available"}
-
-
-# Custom error handler for rate limiting
-@app.exception_handler(429)
-async def rate_limit_exception_handler(request: Request, exc: HTTPException):
-    """Custom handler for rate limit exceeded errors."""
-    return JSONResponse(
-        status_code=429,
-        content={
-            "error": "Too Many Requests",
-            "message": exc.detail.get("message", "Rate limit exceeded"),
-            "retry_after": exc.detail.get("retry_after", 0),
-        },
-        headers={
-            "Retry-After": str(exc.detail.get("retry_after", 0)),
-            "X-RateLimit-Remaining": "0",
-        }
+@app.get("/api/public")
+async def public_endpoint(request: Request) -> PublicResponse:
+    """Public endpoint with rate limit of 100 requests per minute."""
+    return PublicResponse(
+        message="This is a public endpoint",
+        endpoint="api/public",
+        timestamp=asyncio.get_event_loop().time()
     )
 
 
+# Private endpoint (20 requests/minute)
+class PrivateResponse(BaseModel):
+    message: str
+    endpoint: str
+    user_id: Optional[str]
+    timestamp: float
+
+
+@app.get("/api/private")
+async def private_endpoint(
+    request: Request,
+    user_id: Optional[str] = None
+) -> PrivateResponse:
+    """Private endpoint with rate limit of 20 requests per minute."""
+    return PrivateResponse(
+        message="This is a private endpoint",
+        endpoint="api/private",
+        user_id=user_id,
+        timestamp=asyncio.get_event_loop().time()
+    )
+
+
+@app.post("/api/private")
+async def private_post_endpoint(
+    request: Request,
+    data: dict
+) -> PrivateResponse:
+    """Private POST endpoint with rate limit of 20 requests per minute."""
+    return PrivateResponse(
+        message="Private POST successful",
+        endpoint="api/private",
+        user_id=data.get("user_id"),
+        timestamp=asyncio.get_event_loop().time()
+    )
+
+
+# Admin endpoint (5 requests/minute)
+class AdminResponse(BaseModel):
+    message: str
+    endpoint: str
+    timestamp: float
+
+
+@app.get("/api/admin")
+async def admin_endpoint(request: Request) -> AdminResponse:
+    """Admin endpoint with rate limit of 5 requests per minute."""
+    return AdminResponse(
+        message="This is an admin endpoint",
+        endpoint="api/admin",
+        timestamp=asyncio.get_event_loop().time()
+    )
+
+
+@app.post("/api/admin")
+async def admin_post_endpoint(request: Request) -> AdminResponse:
+    """Admin POST endpoint with rate limit of 5 requests per minute."""
+    return AdminResponse(
+        message="Admin POST successful",
+        endpoint="api/admin",
+        timestamp=asyncio.get_event_loop().time()
+    )
+
+
+@app.delete("/api/admin/{item_id}")
+async def admin_delete_endpoint(
+    request: Request,
+    item_id: str
+) -> AdminResponse:
+    """Admin DELETE endpoint with rate limit of 5 requests per minute."""
+    return AdminResponse(
+        message=f"Item {item_id} deleted",
+        endpoint=f"api/admin/{item_id}",
+        timestamp=asyncio.get_event_loop().time()
+    )
+
+
+# Rate limit info endpoint
+@app.get("/api/rate-limit-info")
+async def rate_limit_info(request: Request) -> dict:
+    """Get rate limit information for current request."""
+    headers = {}
+    for key in request.headers.keys():
+        if key.startswith("X-RateLimit"):
+            headers[key] = request.headers[key]
+    
+    return {
+        "client_ip": request.client.host if request.client else "unknown",
+        "path": request.url.path,
+        "method": request.method,
+        "rate_limit_headers": headers
+    }
+
+
+# Custom exception handler for rate limiting
+@app.exception_handler(HTTPException)
+async def rate_limit_exception_handler(request: Request, exc: HTTPException):
+    """Handle rate limit exceptions."""
+    if exc.status_code == 429:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "Rate limit exceeded",
+                "message": exc.detail,
+                "retry_after": request.headers.get("X-RateLimit-Retry-After")
+            }
+        )
+    return exc
+
+
+# Run the server
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
