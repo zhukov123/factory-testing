@@ -1,0 +1,2 @@
+# Rate Limiter Python - minimal dependencies
+pytest>=7.0.0
