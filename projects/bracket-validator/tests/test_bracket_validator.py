@@ -1,3 +1,4 @@
+"""Unit tests for bracket validator."""
 import pytest
 from bracket_validator import validate_brackets
 
