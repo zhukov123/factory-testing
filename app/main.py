@@ -100,7 +100,7 @@ async def create_list(
     
     if not name or not name.strip():
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail="List name cannot be empty"
         )
     
@@ -227,19 +227,13 @@ async def create_list_json(
 ):
     """Create a new list (JSON API). Requires API key authentication."""
     verify_api_key(x_api_key)
-    clean_name = list_data.name.strip()
-    if not clean_name:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="List name cannot be empty"
-        )
-
+    
     try:
         with get_db() as conn:
-            cursor = conn.execute("INSERT INTO lists (name) VALUES (?)", (clean_name,))
+            cursor = conn.execute("INSERT INTO lists (name) VALUES (?)", (list_data.name.strip(),))
             conn.commit()
             list_id = cursor.lastrowid
-        return {"status": "ok", "list_id": list_id, "name": clean_name}
+        return {"status": "ok", "list_id": list_id, "name": list_data.name}
     except sqlite3.Error as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
