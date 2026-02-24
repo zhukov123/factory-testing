@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 
+# Bin/obj (C# / .NET build outputs)
+bin/
+obj/
+
 # Distribution / packaging
 .Python
 build/
@@ -134,6 +138,7 @@ dmypy.json
 .pytype/
 
 # Results and logs
+tasks.db
 results/
 logs/
 *.log

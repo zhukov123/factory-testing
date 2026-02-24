@@ -1,0 +1,2 @@
+# Requirements for the lru-cache project
+pytest>=7.0.0

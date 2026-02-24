@@ -1,6 +1,6 @@
 """Unit tests for LRU Cache implementation."""
 import pytest
-from src.lru_cache import LRUCache
+from lru_cache import LRUCache
 
 
 class TestLRUCacheBasicOperations:
